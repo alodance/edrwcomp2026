@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDRW Photo Rally</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <style>
+        /* Style pour les cartes complétées en mode sombre */
+        .completed { 
+            @apply opacity-60 bg-emerald-900/20 border-emerald-500/50 scale-[0.98]; 
+            transition: all 0.3s ease;
+        }
+        
+        /* Spinner adapté au fond foncé */
+        .spinner { 
+            border: 3px solid rgba(255,255,255,.1); 
+            border-top: 3px solid #60a5fa; 
+            border-radius: 50%; 
+            width: 24px; height: 24px; 
+            animation: spin 1s linear infinite; 
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Correction pour l'input file sur mobile */
+        input::file-selector-button { display: none; }
+    </style>
+</head>
+<body class="bg-[#0f172a] text-slate-200 p-4 md:p-8 font-sans">
+
+<div class="max-w-3xl mx-auto bg-slate-900/50 rounded-2xl shadow-2xl border border-slate-800 p-6">
+    <header class="text-center mb-10 border-b border-slate-800 pb-6">
+        <h1 class="text-3xl font-black tracking-tight text-white uppercase">
+            <span class="text-blue-500">EDRW</span> Rallye de photos
+        </h1>
+        <p class="text-slate-400 mt-2 text-sm italic">Photo Rally</p>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10" id="user-info-section">
+        <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Nom / Name</label>
+            <input type="text" id="userName" 
+                   class="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600" 
+                   placeholder="Sébastien L.">
+        </div>
+        <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Courriel / Email</label>
+            <input type="email" id="userEmail" 
+                   class="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600" 
+                   placeholder="email@exemple.com">
+        </div>
+    </div>
+
+    <div id="questions-container" class="space-y-4">
+        </div>
+</div>
+
+<script>
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNP9ALQN42eW4O_pLPqb96TXmn0TddYzoIEAAjB8KpX2j1zu7726_j671Mo0vBxw6e/exec';
+
+    const questions = [
+        { fr: "Une photo de moi avec un parent EDRW qui n'est pas le mien.", en: "A photo of me with an EDRW parent who is not my own." },
+        { fr: "Une photo de moi avec DEUX danseurs qui dansent dans DEUX studios différents qui n'est pas EDRW.", en: "A photo of me with TWO dancers dancing in TWO different studios that are not EDRW." },
+        { fr: "Une photo qui montre que je suis à/dans/sur deux endroits différents en même temps. Sois créatif!", en: "A photo showing that I am in/at/on two different places at the same time. Be creative!" },
+        { fr: "Une photo de la salle vue de la scène.", en: "A photo of the hall viewed from the stage." },
+        { fr: "Une photo de moi, avec un danseur d'un autre studio, qui porte un costume vert.", en: "A photo of me with a dancer from another studio wearing a green costume." },
+        { fr: "Une photo de moi devant la scène vide (pendant une pause).", en: "A photo of me in front of the empty stage (during a break)." },
+        { fr: "Une photo représentant un danseur de compétition au repos.", en: "A photo depicting a competition dancer at rest." },
+        { fr: "Une photo où on peut voir le nom de la compétition, l'année et mon nom.", en: "A photo where the name of the competition, the year, and my name can be seen." },
+        { fr: "Une photo de moi avec un employé de la compétition.", en: "A photo of me with a competition employee." },
+        { fr: "Une photo de moi en compagnie d'un juge de la compétition.", en: "A photo of me in the company of a competition judge." },
+        { fr: "Un selfie de moi sur la scène.", en: "A selfie of me on the stage." },
+        { fr: "Une photo drôle de moi dans/sur/avec une valise.", en: "A funny photo of me in/on/with a suitcase." },
+        { fr: "Un selfie avec DEUX danseurs EDRW qui ne dansent pas dans mon groupe.", en: "A selfie with TWO EDRW dancers who do not dance in my group." },
+        { fr: "Une photo de moi qui fait une bonne action.", en: "A photo of me doing a good deed." },
+        { fr: "Un selfie de moi avec l'animateur de la compétition.", en: "A selfie of me with the competition host." }
+    ];
+
+    const container = document.getElementById('questions-container');
+    const userNameInput = document.getElementById('userName');
+    const userEmailInput = document.getElementById('userEmail');
+
+    function init() {
+        userNameInput.value = localStorage.getItem('edrw_name') || '';
+        userEmailInput.value = localStorage.getItem('edrw_email') || '';
+
+        questions.forEach((q, index) => {
+            const isDone = localStorage.getItem(`q_${index}_done`);
+            const div = document.createElement('div');
+            div.id = `card-${index}`;
+            div.className = `p-5 border rounded-xl transition-all duration-300 ${isDone ? 'completed' : 'bg-slate-800/40 border-slate-700'}`;
+            
+            div.innerHTML = `
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-5">
+                    <div class="flex-1">
+                        <p class="font-bold text-blue-400 leading-tight">${index + 1}. ${q.fr}</p>
+                        <p class="text-xs text-slate-500 italic mt-1 uppercase tracking-wide">${q.en}</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div id="status-${index}" class="hidden"><div class="spinner"></div></div>
+                        <input type="file" id="input-${index}" accept="image/*" capture="environment" 
+                               class="hidden" onchange="handleUpload(${index})">
+                        <button id="btn-${index}" onclick="document.getElementById('input-${index}').click()" 
+                                class="px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-lg
+                                ${isDone ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'bg-blue-600 hover:bg-blue-500 text-white'}"
+                                ${isDone ? 'disabled' : ''}>
+                            ${isDone ? 'COMPLÉTÉ ✓' : 'PHOTO'}
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    async function handleUpload(index) {
+        const fileInput = document.getElementById(`input-${index}`);
+        const name = userNameInput.value.trim();
+        const email = userEmailInput.value.trim();
+
+        if (!name || !email) {
+            alert("Veuillez entrer votre nom et courriel avant de continuer.");
+            fileInput.value = '';
+            return;
+        }
+
+        localStorage.setItem('edrw_name', name);
+        localStorage.setItem('edrw_email', email);
+
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const btn = document.getElementById(`btn-${index}`);
+        const status = document.getElementById(`status-${index}`);
+        btn.disabled = true;
+        status.classList.remove('hidden');
+
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const base64File = e.target.result;
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify({
+                        userName: name,
+                        userEmail: email,
+                        fileName: `Q${index+1}_${name}_${Date.now()}.jpg`,
+                        file: base64File
+                    })
+                });
+                markAsDone(index);
+            } catch (error) {
+                console.error(error);
+                alert("Erreur lors du téléversement. Réessayez.");
+                btn.disabled = false;
+            } finally {
+                status.classList.add('hidden');
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function markAsDone(index) {
+        localStorage.setItem(`q_${index}_done`, "true");
+        const card = document.getElementById(`card-${index}`);
+        const btn = document.getElementById(`btn-${index}`);
+        card.classList.add('completed');
+        btn.innerText = "COMPLÉTÉ ✓";
+        btn.className = "px-5 py-2 rounded-lg font-bold text-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 cursor-default";
+        btn.disabled = true;
+    }
+
+    init();
+</script>
+
+</body>
+</html>
