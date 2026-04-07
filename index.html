@@ -19,7 +19,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/images/appicon/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="96x96" href="/images/appicon/favicon-96x96.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/images/appicon/favicon-16x16.png">
-    <link rel="manifest" href="/images/appicon/manifest.json">
+    <link rel="manifest" href="/manifest.json">
 </head>
 
 <!-- Google tag (gtag.js) -->
@@ -33,6 +33,67 @@
 </script>
 
 <body class="bg-[#0f172a] text-slate-200 min-h-screen flex items-center justify-center p-6">
+    <div id="install-banner" class="hidden fixed bottom-4 left-4 right-4 bg-blue-600 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between z-50">
+        <div class="flex items-center gap-3">
+            <div class="bg-white/20 p-2 rounded-lg text-xl">📲</div>
+            <div>
+                <p class="font-bold text-sm">Installer l'application</p>
+                <p class="text-xs text-blue-100">Accès rapide sur l'écran d'accueil</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="dismissInstall()" class="px-3 py-1 text-xs font-bold border border-white/30 rounded-lg">Plus tard</button>
+            <button id="install-button" class="px-4 py-1 text-xs font-bold bg-white text-blue-600 rounded-lg">Ajouter</button>
+        </div>
+    </div>
+
+    <script>
+        let deferredPrompt;
+        const banner = document.getElementById('install-banner');
+        const installBtn = document.getElementById('install-button');
+
+        // Détection pour Android
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault(); // Empêche Chrome d'afficher sa bannière moche
+            deferredPrompt = e;
+            // On affiche notre bannière personnalisée si l'utilisateur ne l'a pas déjà refusée
+            if(!localStorage.getItem('install-dismissed')) {
+                banner.classList.remove('hidden');
+            }
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    console.log('App installée !');
+                }
+                deferredPrompt = null;
+                banner.classList.add('hidden');
+            }
+        });
+
+        // Détection spécifique pour iOS (Safari)
+        const isIos = () => {
+            const userAgent = window.navigator.userAgent.toLowerCase();
+            return /iphone|ipad|ipod/.test(userAgent);
+        };
+        
+        const isInStandaloneMode = () => ('standalone' in window.navigator) && (window.navigator.standalone);
+
+        if (isIos() && !isInStandaloneMode() && !localStorage.getItem('install-dismissed')) {
+            // Pour iOS, on change le texte car on ne peut pas déclencher l'install
+            document.querySelector('#install-banner p.text-xs').innerText = "Appuyez sur 'Partager' puis 'Sur l'écran d'accueil'";
+            document.getElementById('install-button').classList.add('hidden'); // On cache le bouton "Ajouter" inutile
+            banner.classList.remove('hidden');
+        }
+
+        function dismissInstall() {
+            banner.classList.add('hidden');
+            localStorage.setItem('install-dismissed', 'true');
+        }
+    </script>
 
     <div class="max-w-md w-full">
         <header class="text-center mb-12">
