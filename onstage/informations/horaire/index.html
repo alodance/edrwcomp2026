@@ -1,41 +1,18 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guide Compétitif - EDRW</title>
+    <title>Horaire Dynamique - EDRW</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
-    <link rel="apple-touch-icon" sizes="57x57" href="/images/appicon/apple-icon-57x57.png">
-    <link rel="apple-touch-icon" sizes="60x60" href="/images/appicon/apple-icon-60x60.png">
-    <link rel="apple-touch-icon" sizes="72x72" href="/images/appicon/apple-icon-72x72.png">
-    <link rel="apple-touch-icon" sizes="76x76" href="/images/appicon/apple-icon-76x76.png">
-    <link rel="apple-touch-icon" sizes="114x114" href="/images/appicon/apple-icon-114x114.png">
-    <link rel="apple-touch-icon" sizes="120x120" href="/images/appicon/apple-icon-120x120.png">
-    <link rel="apple-touch-icon" sizes="144x144" href="/images/appicon/apple-icon-144x144.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="/images/appicon/apple-icon-152x152.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/images/appicon/apple-icon-180x180.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/images/appicon/android-icon-192x192.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/images/appicon/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="96x96" href="/images/appicon/favicon-96x96.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/images/appicon/favicon-16x16.png">
-
+    <style>
+        .card-glow { shadow-[0_0_15px_rgba(59,130,246,0.1)]; }
+    </style>
 </head>
-
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-P833EJRBMX"></script>
-<script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag() { dataLayer.push(arguments); }
-    gtag('js', new Date());
-
-    gtag('config', 'G-P833EJRBMX');
-</script>
-
 <body class="bg-[#0f172a] text-slate-200 min-h-screen flex items-center justify-center p-6">
 
     <div class="max-w-md w-full">
-        <a href="/onstage/informations/index.html">
+        <a href="/onstage/index.html">
             <p class="border text-center border-blue-500 m-2 p-3 text-white hover:text-blue-400 cursor-pointer">
                 Retour</p>
         </a>
@@ -43,25 +20,154 @@
             <img src="/images/logo-edrw.png" alt="Logo EDRW" class="mx-auto w-32 mb-6">
             <h1 class="text-4xl font-black text-white tracking-tighter uppercase">GUIDE COMPÉTITIF</h1>
             <p class="text-slate-400 mt-2">OnStage - 9 au 12 avril 2026</p>
-            <h2 class="text-xl text-slate-400 mt-2">HORAIRE DE LA COMPÉTITION</h2>
+            <h2 class="text-xl text-slate-400 mt-2">INFORMATIONS</h2>
         </header>
 
-        <div class="space-y-4">
-            <a href="#"
-                class="group block p-6 bg-slate-900 border border-slate-800 rounded-2xl hover:border-blue-500 hover:bg-slate-800/50 transition-all shadow-xl"
-                target="_blank">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-xl font-bold text-white group-hover:text-blue-400">Horaire complet EDRW</h2>
-                        <p class="text-sm text-slate-500 tracking-wide uppercase font-semibold">Télécharger l'horaire
-                            des numéros EDRW</p>
-                    </div>
-                    <span class="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
-                </div>
-            </a>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div class="relative">
+                <input type="text" id="searchDanseur" 
+                       placeholder="Chercher un danseur..." 
+                       class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            </div>
+            <div>
+                <select id="filterJour" 
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none">
+                    <option value="">Toutes les journées</option>
+                    <option value="Jeudi">Jeudi</option>
+                    <option value="Vendredi">Vendredi</option>
+                    <option value="Samedi">Samedi</option>
+                    <option value="Dimanche">Dimanche</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="schedule-container" class="space-y-6">
+            <div class="text-center py-10 text-slate-500 italic">Chargement des données...</div>
         </div>
     </div>
 
-</body>
+<script>
+    const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS-usFYRssvfD7X1IVlMebXs5zsTkWk1OlDkMqzg71tUmR0lRWKmFIxFTFBsIvRgRsxy1v1DSTdQdZR/pub?gid=0&single=true&output=csv';
+    
+    let allData = [];
 
+    // NOUVELLE FONCTION DE PARSING : Gère les espaces et les virgules complexes
+    function parseCSV(text) {
+        // Nettoyage des retours à la ligne pour Windows/Unix
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+        if (lines.length === 0) return [];
+
+        // Récupération des headers
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        
+        return lines.slice(1).map(line => {
+            const values = [];
+            let currentVal = '';
+            let inQuotes = false;
+
+            // Parcours de la ligne caractère par caractère pour ne pas briser les espaces
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    values.push(currentVal.trim());
+                    currentVal = '';
+                } else {
+                    currentVal += char;
+                }
+            }
+            values.push(currentVal.trim()); // Ajouter la dernière colonne
+
+            // Création de l'objet final
+            return headers.reduce((obj, header, i) => {
+                let val = values[i] || '';
+                // Nettoyage final des guillemets doubles
+                val = val.replace(/^"|"$/g, '').replace(/""/g, '"');
+                obj[header] = val;
+                return obj;
+            }, {});
+        });
+    }
+
+    async function fetchData() {
+        try {
+            const response = await fetch(SHEET_CSV_URL);
+            const csvText = await response.text();
+            allData = parseCSV(csvText);
+            renderCards(allData);
+        } catch (error) {
+            console.error("Erreur:", error);
+            const container = document.getElementById('schedule-container');
+            if(container) container.innerHTML = `<p class="text-red-400 text-center">Erreur de chargement.</p>`;
+        }
+    }
+
+    function renderCards(data) {
+        const container = document.getElementById('schedule-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (data.length === 0) {
+            container.innerHTML = '<p class="text-center text-slate-500">Aucun numéro trouvé.</p>';
+            return;
+        }
+
+        data.forEach(item => {
+            const card = document.createElement('div');
+            card.className = "bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl hover:border-blue-500/50 transition-all mb-4";
+            
+            card.innerHTML = `
+                <div class="bg-slate-800/50 px-6 py-3 border-b border-slate-800 flex justify-between items-center text-xs font-bold tracking-widest uppercase">
+                    <span class="text-blue-400">${item.jour || ''} ${item.date || ''}</span>
+                    <span class="text-slate-500">#${item.numero || ''}</span>
+                </div>
+                <div class="p-6">
+                    <h3 class="text-2xl font-black text-white mb-2 leading-tight">${item.titre || 'Sans titre'}</h3>
+                    <p class="text-slate-400 text-sm mb-6 italic">${item.danseurs || ''}</p>
+                    
+                    <div class="grid grid-cols-3 gap-4 border-t border-slate-800 pt-6 text-center">
+                        <div>
+                            <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Arrivée</p>
+                            <p class="text-lg font-mono font-bold text-white">${item.arrivee || '--'}</p>
+                        </div>
+                        <div class="border-x border-slate-800">
+                            <p class="text-[10px] text-blue-500 uppercase font-bold mb-1">Passage</p>
+                            <p class="text-lg font-mono font-bold text-blue-400">${item.passage || '--'}</p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Awards</p>
+                            <p class="text-lg font-mono font-bold text-white">${item.awards || '--'}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function handleFilters() {
+        const searchTerm = document.getElementById('searchDanseur').value.toLowerCase();
+        const jourTerm = document.getElementById('filterJour').value;
+
+        const filtered = allData.filter(item => {
+            const danseurs = (item.danseurs || "").toLowerCase();
+            const titre = (item.titre || "").toLowerCase();
+            const jour = item.jour || "";
+
+            const matchName = danseurs.includes(searchTerm) || titre.includes(searchTerm);
+            const matchJour = jourTerm === "" || jour === jourTerm;
+            return matchName && matchJour;
+        });
+
+        renderCards(filtered);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('searchDanseur')?.addEventListener('input', handleFilters);
+        document.getElementById('filterJour')?.addEventListener('change', handleFilters);
+        fetchData();
+    });
+</script>
+</body>
 </html>
