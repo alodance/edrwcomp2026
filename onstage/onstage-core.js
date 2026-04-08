@@ -1,6 +1,10 @@
 // onstage-core.js
 
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS-usFYRssvfD7X1IVlMebXs5zsTkWk1OlDkMqzg71tUmR0lRWKmFIxFTFBsIvRgRsxy1v1DSTdQdZR/pub?gid=0&single=true&output=csv';
+const _part1 = 'https://docs.google.com/spreadsheets/d/e/';
+const _part2 = '2PACX-1vS-usFYRssvfD7X1IVlMebXs5zsTkWk1OlDkMqzg71tUmR0lRWKmFIxFTFBsIvRgRsxy1v1DSTdQdZR';
+const _part3 = '/pub?gid=0&single=true&output=csv';
+
+const SHEET_URL = _part1 + _part2 + _part3;
 
 let globalSchedule = [];
 
@@ -43,13 +47,13 @@ function updateStickyBar() {
 
     const now = new Date();
     // On définit les jours en français pour correspondre à la colonne "jour" de la Sheet
-    const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-    const currentDay = days[now.getDay()];
-    //const currentDay = 'Jeudi'; // Forcer le jour à jeudi pour les tests (à retirer en prod)
+    const daysFr = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+    const currentDayFr = daysFr[now.getDay()];
+    //const currentDayFr = 'Jeudi'; // Forcer le jour à jeudi pour les tests (à retirer en prod)
 
     // Calcul de l'heure de référence (Heure actuelle - 2 minutes)
     // On garde le numéro affiché jusqu'à 2 minutes APRÈS son heure de passage prévue
-    const referenceTime = new Date(now.getTime() - (2 * 60000));
+    const referenceTime = new Date(now.getTime() - 60000);
     const refTimeStr = referenceTime.getHours().toString().padStart(2, '0') + ":" + 
                        referenceTime.getMinutes().toString().padStart(2, '0');
 
@@ -60,7 +64,7 @@ function updateStickyBar() {
         
         if (!passageTime || !itemDay) return false;
 
-        const isToday = itemDay.toLowerCase() === currentDay.toLowerCase();
+        const isToday = itemDay.toLowerCase() === currentDayFr.toLowerCase();
         const isNotFinished = passageTime > refTimeStr;
         
         return isToday && isNotFinished;
@@ -130,7 +134,7 @@ async function initOnStageCore() {
 
         updateStickyBar();
         // Rafraîchissement chaque minute
-        setInterval(updateStickyBar, 60000);
+        setInterval(updateStickyBar, 30000);
     } catch (e) {
         console.error("Erreur Core:", e);
     }

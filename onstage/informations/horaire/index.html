@@ -8,13 +8,28 @@
     <style>
         .card-glow { shadow-[0_0_15px_rgba(59,130,246,0.1)]; }
     </style>
+    <script src="/onstage/onstage-core.js"></script>
 </head>
 <body class="bg-[#0f172a] text-slate-200 min-h-screen flex items-center justify-center p-6">
+    <div id="next-chore-bar" class="hidden fixed bottom-0 left-0 right-0 bg-blue-600 border-t border-blue-400 shadow-[0_-10px_20px_rgba(0,0,0,0.5)] z-[100] p-3 animate-in fade-in slide-in-from-bottom-full duration-500">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="bg-white/20 p-2 rounded-lg animate-pulse">
+                    <span class="text-xl">💃</span>
+                </div>
+                <div class="overflow-hidden">
+                    <p class="text-[10px] font-black uppercase tracking-tighter text-white">Prochain passage à <span id="next-time">--:--</span></p>
+                    <h4 id="next-title" class="text-sm font-bold text-white truncate max-w-[200px] md:max-w-md">Chargement...</h4>
+                </div>
+            </div>
+            <div class="text-right ml-4">
+                <span id="next-countdown" class="bg-black/20 px-3 py-1 rounded-full text-[11px] font-bold text-white whitespace-nowrap">-- min</span>
+            </div>
+        </div>
+    </div>
 
-    <div class="max-w-md w-full">
-        <a href="/onstage/index.html">
-            <p class="border text-center border-blue-500 m-2 p-3 text-white hover:text-blue-400 cursor-pointer">
-                Retour</p>
+    <div class="max-w-md w-full pb-20"> <a href="/onstage/informations/index.html">
+            <p class="border text-center border-blue-500 m-2 p-3 text-white hover:text-blue-400 cursor-pointer">Retour</p>
         </a>
         <header class="text-center my-12">
             <img src="/images/logo-edrw.png" alt="Logo EDRW" class="mx-auto w-32 mb-6">
@@ -25,13 +40,10 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div class="relative">
-                <input type="text" id="searchDanseur" 
-                       placeholder="Chercher un danseur..." 
-                       class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                <input type="text" id="searchDanseur" placeholder="Chercher un danseur..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
             </div>
             <div>
-                <select id="filterJour" 
-                        class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none">
+                <select id="filterJour" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none">
                     <option value="">Toutes les journées</option>
                     <option value="Jeudi">Jeudi</option>
                     <option value="Vendredi">Vendredi</option>
@@ -47,42 +59,33 @@
     </div>
 
 <script>
-    const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS-usFYRssvfD7X1IVlMebXs5zsTkWk1OlDkMqzg71tUmR0lRWKmFIxFTFBsIvRgRsxy1v1DSTdQdZR/pub?gid=0&single=true&output=csv';
+    const _base = 'https://docs.google.com/spreadsheets/d/e/';
+    const _key  = '2PACX-1vS-usFYRssvfD7X1IVlMebXs5zsTkWk1OlDkMqzg71tUmR0lRWKmFIxFTFBsIvRgRsxy1v1DSTdQdZR';
+    const _ext  = '/pub?gid=0&single=true&output=csv';
+
+    const SHEET_CSV_URL = _base + _key + _ext;
+    // ------------------------------
     
     let allData = [];
 
-    // NOUVELLE FONCTION DE PARSING : Gère les espaces et les virgules complexes
     function parseCSV(text) {
-        // Nettoyage des retours à la ligne pour Windows/Unix
         const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
         if (lines.length === 0) return [];
-
-        // Récupération des headers
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
         
         return lines.slice(1).map(line => {
             const values = [];
             let currentVal = '';
             let inQuotes = false;
-
-            // Parcours de la ligne caractère par caractère pour ne pas briser les espaces
             for (let i = 0; i < line.length; i++) {
                 const char = line[i];
-                if (char === '"') {
-                    inQuotes = !inQuotes;
-                } else if (char === ',' && !inQuotes) {
-                    values.push(currentVal.trim());
-                    currentVal = '';
-                } else {
-                    currentVal += char;
-                }
+                if (char === '"') { inQuotes = !inQuotes; } 
+                else if (char === ',' && !inQuotes) { values.push(currentVal.trim()); currentVal = ''; } 
+                else { currentVal += char; }
             }
-            values.push(currentVal.trim()); // Ajouter la dernière colonne
-
-            // Création de l'objet final
+            values.push(currentVal.trim());
             return headers.reduce((obj, header, i) => {
                 let val = values[i] || '';
-                // Nettoyage final des guillemets doubles
                 val = val.replace(/^"|"$/g, '').replace(/""/g, '"');
                 obj[header] = val;
                 return obj;
@@ -92,14 +95,20 @@
 
     async function fetchData() {
         try {
-            const response = await fetch(SHEET_CSV_URL);
+            // Utilisation d'un template literal plus propre pour le cache-busting
+            const response = await fetch(`${SHEET_CSV_URL}&t=${Date.now()}`);
             const csvText = await response.text();
             allData = parseCSV(csvText);
-            renderCards(allData);
+            
+            handleFilters();
+            
+            if (typeof updateStickyBar === 'function') {
+                updateStickyBar();
+            }
         } catch (error) {
-            console.error("Erreur:", error);
+            console.error("Erreur de récupération:", error);
             const container = document.getElementById('schedule-container');
-            if(container) container.innerHTML = `<p class="text-red-400 text-center">Erreur de chargement.</p>`;
+            if(container) container.innerHTML = `<p class="text-red-400 text-center">Erreur de mise à jour.</p>`;
         }
     }
 
@@ -113,25 +122,92 @@
             return;
         }
 
+        const now = new Date();
+        const daysFr = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+        const currentDayFr = daysFr[now.getDay()];
+        //const currentDayFr = 'Jeudi'; // Pour tests
+
+        const refFinished = new Date(now.getTime() - 60000); 
+        const refFinishedStr = refFinished.getHours().toString().padStart(2, '0') + ":" + 
+                               refFinished.getMinutes().toString().padStart(2, '0');
+
+        const currentTimeStr = now.getHours().toString().padStart(2, '0') + ":" + 
+                               now.getMinutes().toString().padStart(2, '0');
+
+        const nextItem = data.find(item => {
+            const isToday = (item.jour || "").toLowerCase() === currentDayFr.toLowerCase();
+            return isToday && (item.passage || "") > refFinishedStr;
+        });
+
         data.forEach(item => {
             const card = document.createElement('div');
-            card.className = "bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl hover:border-blue-500/50 transition-all mb-4";
+            let statusBadge = "";
+            let borderClass = "border-slate-800";
+            let opacityClass = "opacity-100"; // On force l'opacité à 100% partout
+            let bgClass = "bg-slate-900";
+
+            const isToday = (item.jour || "").toLowerCase() === currentDayFr.toLowerCase();
+            const passageTime = (item.passage || "").trim();
+
+            if (isToday && passageTime) {
+                if (passageTime <= refFinishedStr) {
+                    // ÉTAT : TERMINÉ
+                    // On remplace le gris pâle par un badge sobre mais on garde la carte bien visible
+                    statusBadge = `<span class="bg-slate-700 text-slate-300 px-2 py-1 rounded text-[9px] font-black ml-2 uppercase tracking-widest">Terminé</span>`;
+                    borderClass = "border-slate-700"; // Bordure légèrement plus visible que le fond, mais neutre
+                    bgClass = "bg-slate-900/80"; // Un fond très légèrement différent si tu veux, mais reste clair
+                } else if (passageTime <= currentTimeStr) {
+                    // ÉTAT : EN COURS
+                    statusBadge = `<span class="bg-red-600 text-white px-2 py-1 rounded text-[9px] font-black ml-2 animate-pulse uppercase tracking-widest">En cours</span>`;
+                    borderClass = "border-red-500 shadow-[0_0_20px_rgba(220,38,38,0.2)]";
+                } else if (nextItem && item.numero === nextItem.numero) {
+                    // ÉTAT : À VENIR
+                    statusBadge = `<span class="bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-black ml-2 uppercase tracking-widest">À venir</span>`;
+                    borderClass = "border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]";
+                }
+            }
+
+            // On applique les classes mises à jour
+            card.className = `${bgClass} border ${borderClass} ${opacityClass} rounded-2xl overflow-hidden shadow-xl transition-all duration-500 mb-6`;
             
+            const hasResult = item.results && item.results.trim() !== "";
+            const hasSpecial = item.special && item.special.trim() !== "";
+            let resultSection = "";
+
+            if (hasResult || hasSpecial) {
+                const resultColSpan = hasSpecial ? "col-span-1" : "col-span-2";
+                resultSection = `
+                <div class="grid grid-cols-2 gap-px bg-slate-800 border-t border-slate-800">
+                    <div class="bg-slate-950/50 p-4 text-center ${resultColSpan}">
+                        <p class="text-[10px] text-blue-400 uppercase font-black tracking-widest mb-1">Résultat</p>
+                        <p class="text-sm font-bold text-white uppercase">${item.results || '-'}</p>
+                    </div>
+                    ${hasSpecial ? `
+                    <div class="bg-slate-950/50 p-4 text-center border-l border-slate-800">
+                        <p class="text-[10px] text-purple-400 uppercase font-black tracking-widest mb-1">Spécial</p>
+                        <p class="text-sm font-bold text-white uppercase">${item.special}</p>
+                    </div>
+                    ` : ''}
+                </div>`;
+            }
+
             card.innerHTML = `
                 <div class="bg-slate-800/50 px-6 py-3 border-b border-slate-800 flex justify-between items-center text-xs font-bold tracking-widest uppercase">
-                    <span class="text-blue-400">${item.jour || ''} ${item.date || ''}</span>
+                    <div class="flex items-center">
+                        <span class="text-blue-400">${item.jour || ''} ${item.date || ''}</span>
+                        ${statusBadge}
+                    </div>
                     <span class="text-slate-500">#${item.numero || ''}</span>
                 </div>
                 <div class="p-6">
-                    <h3 class="text-2xl font-black text-white mb-2 leading-tight">${item.titre || 'Sans titre'}</h3>
+                    <h3 class="text-2xl font-black text-white mb-2 leading-tight uppercase italic tracking-tighter">${item.titre || 'Sans titre'}</h3>
                     <p class="text-slate-400 text-sm mb-6 italic">${item.danseurs || ''}</p>
-                    
                     <div class="grid grid-cols-3 gap-4 border-t border-slate-800 pt-6 text-center">
                         <div>
                             <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Arrivée</p>
                             <p class="text-lg font-mono font-bold text-white">${item.arrivee || '--'}</p>
                         </div>
-                        <div class="border-x border-slate-800">
+                        <div class="border-x border-slate-800 px-2">
                             <p class="text-[10px] text-blue-500 uppercase font-bold mb-1">Passage</p>
                             <p class="text-lg font-mono font-bold text-blue-400">${item.passage || '--'}</p>
                         </div>
@@ -141,6 +217,7 @@
                         </div>
                     </div>
                 </div>
+                ${resultSection}
             `;
             container.appendChild(card);
         });
@@ -154,7 +231,6 @@
             const danseurs = (item.danseurs || "").toLowerCase();
             const titre = (item.titre || "").toLowerCase();
             const jour = item.jour || "";
-
             const matchName = danseurs.includes(searchTerm) || titre.includes(searchTerm);
             const matchJour = jourTerm === "" || jour === jourTerm;
             return matchName && matchJour;
@@ -166,7 +242,12 @@
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('searchDanseur')?.addEventListener('input', handleFilters);
         document.getElementById('filterJour')?.addEventListener('change', handleFilters);
+        
+        // Chargement initial
         fetchData();
+
+        // Rafraîchissement automatique toutes les 30 secondes (données + états temporels)
+        setInterval(fetchData, 30000);
     });
 </script>
 </body>
