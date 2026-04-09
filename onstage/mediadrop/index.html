@@ -5,9 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MediaDrop - EDRW</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script src="/onstage/onstage-core.js"></script>
 </head>
-<body class="bg-[#0f172a] text-slate-200 min-h-screen flex items-center justify-center p-6">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-P833EJRBMX"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
 
+    gtag('config', 'G-P833EJRBMX');
+</script>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen flex items-center justify-center p-6">
+<div id="next-chore-bar" class="hidden fixed bottom-0 left-0 right-0 bg-blue-600 border-t border-blue-400 shadow-[0_-10px_20px_rgba(0,0,0,0.5)] z-[100] p-3 animate-in fade-in slide-in-from-bottom-full duration-500">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="bg-white/20 p-2 rounded-lg animate-pulse">
+                    <span class="text-xl">💃</span>
+                </div>
+                <div class="overflow-hidden">
+                    <p class="text-[10px] font-black uppercase tracking-tighter text-white">Prochain passage à <span id="next-time">--:--</span></p>
+                    <h4 id="next-title" class="text-sm font-bold text-white truncate max-w-[200px] md:max-w-md">Chargement...</h4>
+                </div>
+            </div>
+            <div class="text-right ml-4">
+                <span id="next-countdown" class="bg-black/20 px-3 py-1 rounded-full text-[11px] font-bold text-white whitespace-nowrap">-- min</span>
+            </div>
+        </div>
+    </div>
     <div class="max-w-md w-full pb-20">
         <a href="/onstage/index.html">
             <p class="border text-center border-blue-500 m-2 p-3 text-white hover:text-blue-400 cursor-pointer rounded-lg transition-colors">Retour</p>
