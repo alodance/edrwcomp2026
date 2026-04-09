@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaDrop - EDRW</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen flex items-center justify-center p-6">
+
+    <div class="max-w-md w-full pb-20">
+        <a href="/onstage/index.html">
+            <p class="border text-center border-blue-500 m-2 p-3 text-white hover:text-blue-400 cursor-pointer rounded-lg transition-colors">Retour</p>
+        </a>
+
+        <header class="text-center my-12">
+            <img src="/images/logo-edrw.png" alt="Logo EDRW" class="mx-auto w-32 mb-6">
+            <h1 class="text-4xl font-black text-white tracking-tighter uppercase">Photographe d'un jour?</h1>
+            <p class="text-slate-400 mt-2 italic text-sm">Partagez vos moments de la compétition<br />(Maximum 40mb par soumission)</p>
+        </header>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
+            <div id="upload-section">
+                <div class="border-2 border-dashed border-slate-700 rounded-xl p-8 text-center hover:border-blue-500 transition-colors cursor-pointer relative" id="drop-zone">
+                    <input type="file" id="fileInput" multiple accept="image/*,video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    <div class="space-y-4">
+                        <span class="text-4xl block">📤</span>
+                        <p class="text-sm font-bold text-white uppercase tracking-tighter">Sélectionner photos / vidéos</p>
+                    </div>
+                </div>
+
+                <div id="file-list" class="mt-6 space-y-3"></div>
+
+                <button id="submit-btn" onclick="startUploads()" class="hidden w-full mt-6 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm shadow-lg shadow-blue-900/20">
+                    Envoyer à l'équipe
+                </button>
+            </div>
+
+            <div id="status-msg" class="hidden mt-6 text-center text-sm font-bold uppercase tracking-widest text-green-400 animate-pulse">
+                Envoi réussi ! Merci.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya-Snj8K_8aj9_ahrgV24KDQYYvVccSwU17-S8vUyOLS9qHhR0Yiy8081wij6UrxYF/exec"; // Colle l'URL /exec ici
+        let filesToUpload = [];
+
+        const fileInput = document.getElementById('fileInput');
+        fileInput.addEventListener('change', (e) => {
+            filesToUpload = Array.from(e.target.files);
+            const list = document.getElementById('file-list');
+            list.innerHTML = filesToUpload.map(f => `
+                <div class="bg-slate-800 p-3 rounded-lg text-[11px] border border-slate-700 flex justify-between">
+                    <span class="truncate pr-4">${f.name}</span>
+                    <span class="text-blue-400 font-mono">${(f.size/1024/1024).toFixed(1)}MB</span>
+                </div>
+            `).join('');
+            document.getElementById('submit-btn').classList.toggle('hidden', filesToUpload.length === 0);
+        });
+
+        async function startUploads() {
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.innerHTML = "Envoi en cours...";
+
+            for (const file of filesToUpload) {
+                try {
+                    const base64 = await toBase64(file);
+                    const payload = {
+                        filename: file.name,
+                        mimetype: file.type,
+                        base64: base64.split(',')[1]
+                    };
+
+                    await fetch(SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify(payload)
+                    });
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            btn.classList.add('hidden');
+            document.getElementById('file-list').classList.add('hidden');
+            document.getElementById('status-msg').classList.remove('hidden');
+            setTimeout(() => location.reload(), 3000);
+        }
+
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    </script>
+</body>
+</html>
