@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mots Croisés Danse - EDRW</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <style>
+        /* Case jouable vide : Bordure blanche claire pour être très visible */
+        .cell-playable {
+            border: 1px solid rgba(255, 255, 255, 0.4) !important;
+            background-color: #1e293b !important; /* Slate 800 */
+        }
+
+        /* Surlignage du mot entier sélectionné */
+        .cell-active-group { 
+            background-color: rgba(59, 130, 246, 0.5) !important; 
+            border: 1.5px solid #93c5fd !important;
+        } 
+
+        /* Case précise en focus (Contraste maximum) */
+        .cell-focus { 
+            background-color: #3b82f6 !important; 
+            color: white !important; 
+            border: 3px solid #ffffff !important;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+            z-index: 20;
+        }
+
+        /* Mot correct (Vert émeraude vibrant) */
+        .cell-correct { 
+            background-color: #10b981 !important; 
+            color: white !important; 
+            border: 1px solid #34d399 !important;
+            cursor: default !important;
+        }
+
+        .clue-done { @apply line-through opacity-40 text-emerald-400 font-normal!; }
+        
+        input { caret-color: transparent; }
+    </style>
+</head>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen p-4 font-sans select-none">
+
+    <div class="max-w-xl mx-auto pb-10">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-black text-white uppercase tracking-tighter italic">Challenge Danse</h1>
+            <div id="game-status" class="text-[10px] font-bold text-blue-400 uppercase tracking-[0.3em]">Mots croisés interactifs</div>
+        </header>
+
+        <div id="crossword-grid" class="grid grid-cols-12 gap-1 bg-slate-900 p-2 rounded-xl shadow-2xl aspect-square mb-6 border border-slate-700">
+            </div>
+
+        <div id="active-clue-display" class="bg-blue-600 text-white p-4 rounded-2xl mb-6 text-center text-sm font-bold shadow-lg min-h-[60px] flex items-center justify-center border-2 border-white/20">
+            Touchez une case blanche pour commencer
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 bg-slate-900/80 p-5 rounded-3xl border border-slate-800 shadow-inner">
+            <div>
+                <h3 class="text-amber-500 font-black text-[10px] uppercase mb-3 tracking-widest border-b border-slate-700 pb-1">Horizontal</h3>
+                <ul id="clues-h" class="text-[11px] space-y-2 text-slate-400"></ul>
+            </div>
+            <div>
+                <h3 class="text-blue-500 font-black text-[10px] uppercase mb-3 tracking-widest border-b border-slate-700 pb-1">Vertical</h3>
+                <ul id="clues-v" class="text-[11px] space-y-2 text-slate-400"></ul>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const words = [
+        { id: 'H1', word: "SCENE", x: 1, y: 1, dir: "H", clue: "Plateau de bois où tout commence." },
+        { id: 'V1', word: "SOLO", x: 1, y: 1, dir: "V", clue: "Seul face au public." },
+        { id: 'H2', word: "BALLET", x: 4, y: 1, dir: "H", clue: "Danse classique par excellence." },
+        { id: 'V2', word: "TUTU", x: 8, y: 1, dir: "V", clue: "Jupon vaporeux de la ballerine." },
+        { id: 'V3', word: "RYTHME", x: 5, y: 1, dir: "V", clue: "Cadence du mouvement." },
+        { id: 'H3', word: "POINTES", x: 3, y: 4, dir: "H", clue: "Chaussons pour s'élever." },
+        { id: 'V4', word: "DANSE", x: 10, y: 4, dir: "V", clue: "Mouvement corporel rythmé." },
+        { id: 'H4', word: "GALA", x: 8, y: 7, dir: "H", clue: "Spectacle de fin d'année." },
+        { id: 'V5', word: "JAZZ", x: 3, y: 7, dir: "V", clue: "Style de danse dynamique et moderne." },
+        { id: 'H5', word: "CHORE", x: 1, y: 9, dir: "H", clue: "Abréviation de l'enchaînement créé." },
+        { id: 'H6', word: "DUO", x: 8, y: 10, dir: "H", clue: "Deux danseurs complices." }
+    ];
+
+    const gridSize = 12;
+    let activeWordId = null;
+    let currentDir = "H"; 
+
+    function initGame() {
+        const grid = document.getElementById('crossword-grid');
+        for (let i = 0; i < gridSize * gridSize; i++) {
+            const x = i % gridSize; const y = Math.floor(i / gridSize);
+            const cell = document.createElement('div');
+            cell.id = `cell-${x}-${y}`;
+            cell.className = "bg-black rounded flex items-center justify-center relative transition-colors";
+            grid.appendChild(cell);
+        }
+
+        words.forEach(w => {
+            const list = document.getElementById(`clues-${w.dir.toLowerCase()}`);
+            if (!document.getElementById(`clue-${w.id}`)) {
+                list.innerHTML += `<li id="clue-${w.id}" class="transition-all">${w.id.substring(1)}. ${w.clue}</li>`;
+            }
+
+            for (let i = 0; i < w.word.length; i++) {
+                const cx = w.dir === "H" ? w.x + i : w.x;
+                const cy = w.dir === "V" ? w.y + i : w.y;
+                const cell = document.getElementById(`cell-${cx}-${cy}`);
+                
+                if (!cell.querySelector('input')) {
+                    const input = document.createElement('input');
+                    input.maxLength = 1;
+                    input.className = "w-full h-full text-center uppercase font-black text-sm focus:outline-none rounded transition-all text-white cursor-pointer cell-playable";
+                    input.dataset.x = cx; input.dataset.y = cy;
+                    
+                    input.oninput = (e) => handleInput(e, cx, cy);
+                    input.onkeydown = (e) => handleKeyDown(e, cx, cy);
+                    input.onfocus = () => handleCellClick(cx, cy);
+                    
+                    cell.appendChild(input);
+                    if (i === 0) {
+                        cell.innerHTML += `<span class="absolute top-0.5 left-0.5 text-[7px] text-white/60 font-bold z-10 pointer-events-none">${w.id.substring(1)}</span>`;
+                    }
+                }
+            }
+        });
+    }
+
+    function handleCellClick(x, y) {
+        const possibleWords = words.filter(w => 
+            w.dir === "H" ? (y === w.y && x >= w.x && x < w.x + w.word.length) : (x === w.x && y >= w.y && y < w.y + w.word.length)
+        );
+
+        if (possibleWords.length === 0) return;
+
+        // Logique de bascule H/V sur intersection
+        if (possibleWords.length > 1 && activeWordId) {
+            if (document.activeElement.dataset.lastPos === `${x}-${y}`) {
+                currentDir = currentDir === "H" ? "V" : "H";
+            }
+        } else {
+            currentDir = possibleWords[0].dir;
+        }
+
+        const selected = possibleWords.find(w => w.dir === currentDir) || possibleWords[0];
+        activeWordId = selected.id;
+        document.activeElement.dataset.lastPos = `${x}-${y}`;
+        updateUI();
+    }
+
+    function updateUI() {
+        document.querySelectorAll('input').forEach(i => i.classList.remove('cell-focus', 'cell-active-group'));
+        
+        const w = words.find(item => item.id === activeWordId);
+        if (!w) return;
+
+        document.getElementById('active-clue-display').innerText = w.clue;
+
+        // Surligner le groupe
+        for (let i = 0; i < w.word.length; i++) {
+            const cx = w.dir === "H" ? w.x + i : w.x;
+            const cy = w.dir === "V" ? w.y + i : w.y;
+            const input = document.querySelector(`input[data-x="${cx}"][data-y="${cy}"]`);
+            if (input) input.classList.add('cell-active-group');
+        }
+
+        // Surligner la case active
+        if (document.activeElement) document.activeElement.classList.add('cell-focus');
+    }
+
+    function handleInput(e, x, y) {
+        const val = e.target.value.toUpperCase();
+        e.target.value = val;
+        
+        // CORRECTION AUTOMATIQUE : On vérifie les mots impactés par cette case
+        checkSuccess();
+
+        if (val) moveFocus(x, y, 1);
+    }
+
+    function handleKeyDown(e, x, y) {
+        if (e.key === "Backspace" && !e.target.value) {
+            moveFocus(x, y, -1);
+        }
+    }
+
+    function moveFocus(x, y, step) {
+        const w = words.find(item => item.id === activeWordId);
+        if (!w) return;
+
+        const idx = w.dir === "H" ? x - w.x : y - w.y;
+        const nextIdx = idx + step;
+        
+        if (nextIdx >= 0 && nextIdx < w.word.length) {
+            const nx = w.dir === "H" ? w.x + nextIdx : w.x;
+            const ny = w.dir === "V" ? w.y + nextIdx : w.y;
+            const nextInput = document.querySelector(`input[data-x="${nx}"][data-y="${ny}"]`);
+            if (nextInput && !nextInput.readOnly) nextInput.focus();
+        }
+    }
+
+    function checkSuccess() {
+        words.forEach(w => {
+            let attempt = "";
+            let cells = [];
+            for (let i = 0; i < w.word.length; i++) {
+                const cx = w.dir === "H" ? w.x + i : w.x;
+                const cy = w.dir === "V" ? w.y + i : w.y;
+                const input = document.querySelector(`input[data-x="${cx}"][data-y="${cy}"]`);
+                attempt += input.value;
+                cells.push(input);
+            }
+
+            if (attempt.toUpperCase() === w.word) {
+                cells.forEach(c => {
+                    c.classList.add('cell-correct');
+                    c.readOnly = true; // Verrouille la réponse
+                });
+                const clueEl = document.getElementById(`clue-${w.id}`);
+                if (clueEl) clueEl.classList.add('clue-done');
+            }
+        });
+    }
+
+    initGame();
+</script>
+</body>
+</html>
