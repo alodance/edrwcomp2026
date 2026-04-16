@@ -48,8 +48,8 @@ function updateStickyBar() {
     const now = new Date();
     // On définit les jours en français pour correspondre à la colonne "jour" de la Sheet
     const daysFr = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-    //const currentDayFr = daysFr[now.getDay()];
-    const currentDayFr = 'mardi'; // Forcer le jour à jeudi pour les tests (à retirer en prod)
+    const currentDayFr = daysFr[now.getDay()];
+    //const currentDayFr = 'mardi'; // Forcer le jour à jeudi pour les tests (à retirer en prod)
 
     // Calcul de l'heure de référence (Heure actuelle - 2 minutes)
     // On garde le numéro affiché jusqu'à 2 minutes APRÈS son heure de passage prévue
