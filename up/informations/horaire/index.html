@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horaire Dynamique - EDRW</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <style>
+        .card-glow { shadow-[0_0_15px_rgba(59,130,246,0.1)]; }
+    </style>
+    <script src="/up/up-core.js"></script>
+</head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-P833EJRBMX"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+
+    gtag('config', 'G-P833EJRBMX');
+</script>
+
+<body class="bg-[#0f172a] text-slate-200 min-h-screen flex items-center justify-center p-6">
+    <div id="next-chore-bar" class="hidden fixed bottom-0 left-0 right-0 bg-blue-600 border-t border-blue-400 shadow-[0_-10px_20px_rgba(0,0,0,0.5)] z-[100] p-3 animate-in fade-in slide-in-from-bottom-full duration-500">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="bg-white/20 p-2 rounded-lg animate-pulse">
+                    <span class="text-xl">💃</span>
+                </div>
+                <div class="overflow-hidden">
+                    <p class="text-[10px] font-black uppercase tracking-tighter text-white">Prochain passage à <span id="next-time">--:--</span></p>
+                    <h4 id="next-title" class="text-sm font-bold text-white truncate max-w-[200px] md:max-w-md">Chargement...</h4>
+                </div>
+            </div>
+            <div class="text-right ml-4">
+                <span id="next-countdown" class="bg-black/20 px-3 py-1 rounded-full text-[11px] font-bold text-white whitespace-nowrap">-- min</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-md w-full pb-20"> <a href="/up/informations/index.html">
+            <p class="border text-center border-blue-500 m-2 p-3 text-white hover:text-blue-400 cursor-pointer">Retour</p>
+        </a>
+        <header class="text-center my-12">
+            <img src="/images/logo-edrw.png" alt="Logo EDRW" class="mx-auto w-32 mb-6">
+            <h1 class="text-4xl font-black text-white tracking-tighter uppercase">GUIDE COMPÉTITIF</h1>
+            <p class="text-slate-300 mt-2">UP DANCE CHALLENGE - 9 mai 2026</p>
+            <h2 class="text-xl text-slate-300 mt-2">HORAIRE</h2>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div class="relative">
+                <input type="text" id="searchDanseur" placeholder="Chercher un danseur..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            </div>
+            <div>
+                <select id="filterJour" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none">
+                    <option value="">Toutes les journées</option>
+                    <option value="Samedi">Samedi</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="schedule-container" class="space-y-6">
+            <div class="text-center py-10 text-slate-500 italic">Chargement des données...</div>
+        </div>
+    </div>
+
+<script>
+    const _base = 'https://docs.google.com/spreadsheets/d/e/';
+    const _key  = '2PACX-1vRIcDPtDeiXmAfo-IiqbiL-aHz7CP-E2-tSGkm_10cIhlWwegG7UfH56jG8F1No6AgV1nfMwaOJ1uVA';
+    const _ext  = '/pub?gid=0&single=true&output=csv';
+
+    const SHEET_CSV_URL = _base + _key + _ext;
+    // ------------------------------
+    
+    let allData = [];
+
+    function parseCSV(text) {
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+        if (lines.length === 0) return [];
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        
+        return lines.slice(1).map(line => {
+            const values = [];
+            let currentVal = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') { inQuotes = !inQuotes; } 
+                else if (char === ',' && !inQuotes) { values.push(currentVal.trim()); currentVal = ''; } 
+                else { currentVal += char; }
+            }
+            values.push(currentVal.trim());
+            return headers.reduce((obj, header, i) => {
+                let val = values[i] || '';
+                val = val.replace(/^"|"$/g, '').replace(/""/g, '"');
+                obj[header] = val;
+                return obj;
+            }, {});
+        });
+    }
+
+    async function fetchData() {
+        try {
+            // Utilisation d'un template literal plus propre pour le cache-busting
+            const response = await fetch(`${SHEET_CSV_URL}&t=${Date.now()}`);
+            const csvText = await response.text();
+            allData = parseCSV(csvText);
+            
+            handleFilters();
+            
+            if (typeof updateStickyBar === 'function') {
+                updateStickyBar();
+            }
+        } catch (error) {
+            console.error("Erreur de récupération:", error);
+            const container = document.getElementById('schedule-container');
+            if(container) container.innerHTML = `<p class="text-red-400 text-center">Erreur de mise à jour.</p>`;
+        }
+    }
+
+    function renderCards(data) {
+        const container = document.getElementById('schedule-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (data.length === 0) {
+            container.innerHTML = '<p class="text-center text-slate-500">Aucun numéro trouvé.</p>';
+            return;
+        }
+
+        const now = new Date();
+        const daysFr = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+        const currentDayFr = daysFr[now.getDay()];
+        //const currentDayFr = 'Jeudi'; // Pour tests
+
+        const refFinished = new Date(now.getTime() - 60000); 
+        const refFinishedStr = refFinished.getHours().toString().padStart(2, '0') + ":" + 
+                               refFinished.getMinutes().toString().padStart(2, '0');
+
+        const currentTimeStr = now.getHours().toString().padStart(2, '0') + ":" + 
+                               now.getMinutes().toString().padStart(2, '0');
+
+        const nextItem = data.find(item => {
+            const isToday = (item.jour || "").toLowerCase() === currentDayFr.toLowerCase();
+            return isToday && (item.passage || "") > refFinishedStr;
+        });
+
+        data.forEach(item => {
+            const card = document.createElement('div');
+            let statusBadge = "";
+            let borderClass = "border-slate-800";
+            let opacityClass = "opacity-100"; // On force l'opacité à 100% partout
+            let bgClass = "bg-slate-900";
+
+            const isToday = (item.jour || "").toLowerCase() === currentDayFr.toLowerCase();
+            const passageTime = (item.passage || "").trim();
+
+            if (isToday && passageTime) {
+                if (passageTime <= refFinishedStr) {
+                    // ÉTAT : TERMINÉ
+                    // On remplace le gris pâle par un badge sobre mais on garde la carte bien visible
+                    statusBadge = `<span class="bg-slate-700 text-slate-300 px-2 py-1 rounded text-[9px] font-black ml-2 uppercase tracking-widest">Terminé</span>`;
+                    borderClass = "border-slate-700"; // Bordure légèrement plus visible que le fond, mais neutre
+                    bgClass = "bg-slate-900/80"; // Un fond très légèrement différent si tu veux, mais reste clair
+                } else if (passageTime <= currentTimeStr) {
+                    // ÉTAT : EN COURS
+                    statusBadge = `<span class="bg-red-600 text-white px-2 py-1 rounded text-[9px] font-black ml-2 animate-pulse uppercase tracking-widest">En cours</span>`;
+                    borderClass = "border-red-500 shadow-[0_0_20px_rgba(220,38,38,0.2)]";
+                } else if (nextItem && item.numero === nextItem.numero) {
+                    // ÉTAT : À VENIR
+                    statusBadge = `<span class="bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-black ml-2 uppercase tracking-widest">À venir</span>`;
+                    borderClass = "border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]";
+                }
+            }
+
+            // On applique les classes mises à jour
+            card.className = `${bgClass} border ${borderClass} ${opacityClass} rounded-2xl overflow-hidden shadow-xl transition-all duration-500 mb-6`;
+            
+            const hasResult = item.results && item.results.trim() !== "";
+            const hasRank = item.rank && item.rank.trim() !== "";
+            const hasSpecial = item.special && item.special.trim() !== "";
+            let resultSection = "";
+
+            if (hasResult || hasRank || hasSpecial) {
+                // On compte combien de colonnes sont remplies pour le grid-cols-X
+                const activeCount = [hasResult, hasRank, hasSpecial].filter(Boolean).length;
+                
+                resultSection = `
+                <div class="grid grid-cols-${activeCount} gap-px bg-slate-800 border-t border-slate-800">
+                    ${hasResult ? `
+                    <div class="bg-slate-950/50 p-4 text-center">
+                        <p class="text-[10px] text-blue-400 uppercase font-black tracking-widest mb-1">Résultat</p>
+                        <p class="text-sm font-bold text-white uppercase">${item.results}</p>
+                    </div>` : ''}
+
+                    ${hasRank ? `
+                    <div class="bg-slate-950/50 p-4 text-center border-l border-slate-800">
+                        <p class="text-[10px] text-amber-500 uppercase font-black tracking-widest mb-1">Rang</p>
+                        <p class="text-sm font-bold text-white uppercase">${item.rank}</p>
+                    </div>` : ''}
+
+                    ${hasSpecial ? `
+                    <div class="bg-slate-950/50 p-4 text-center border-l border-slate-800">
+                        <p class="text-[10px] text-purple-400 uppercase font-black tracking-widest mb-1">Distinction</p>
+                        <p class="text-sm font-bold text-white uppercase">${item.special}</p>
+                    </div>` : ''}
+                </div>`;
+            }
+
+            card.innerHTML = `
+                <div class="bg-slate-800/50 px-6 py-3 border-b border-slate-800 flex justify-between items-center text-xs font-bold tracking-widest uppercase">
+                    <div class="flex items-center">
+                        <span class="text-blue-400">${item.jour || ''} ${item.date || ''}</span>
+                        ${statusBadge}
+                    </div>
+                    <span class="text-slate-500">#${item.numero || ''}</span>
+                </div>
+                <div class="p-6">
+                    <h3 class="text-2xl font-black text-white mb-2 leading-tight uppercase italic tracking-tighter">${item.titre || 'Sans titre'}</h3>
+                    <p class="text-slate-400 text-sm mb-6 italic">${item.danseurs || ''}</p>
+                    <div class="grid grid-cols-3 gap-4 border-t border-slate-800 pt-6 text-center">
+                        <div>
+                            <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Arrivée</p>
+                            <p class="text-lg font-mono font-bold text-white">${item.arrivee || '--'}</p>
+                        </div>
+                        <div class="border-x border-slate-800 px-2">
+                            <p class="text-[10px] text-blue-500 uppercase font-bold mb-1">Passage</p>
+                            <p class="text-lg font-mono font-bold text-blue-400">${item.passage || '--'}</p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Awards</p>
+                            <p class="text-lg font-mono font-bold text-white">${item.awards || '--'}</p>
+                        </div>
+                    </div>
+                </div>
+                ${resultSection}
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function handleFilters() {
+        const searchTerm = document.getElementById('searchDanseur').value.toLowerCase();
+        const jourTerm = document.getElementById('filterJour').value;
+
+        const filtered = allData.filter(item => {
+            const danseurs = (item.danseurs || "").toLowerCase();
+            const titre = (item.titre || "").toLowerCase();
+            const jour = item.jour || "";
+            const matchName = danseurs.includes(searchTerm) || titre.includes(searchTerm);
+            const matchJour = jourTerm === "" || jour === jourTerm;
+            return matchName && matchJour;
+        });
+
+        renderCards(filtered);
+    }
+
+    // Fonction pour sélectionner automatiquement le jour actuel
+    function initAutoSelectDay() {
+        const filterJour = document.getElementById('filterJour');
+        const daysFr = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+        const todayFr = daysFr[new Date().getDay()];
+
+        // On vérifie si l'option existe dans le select
+        const options = Array.from(filterJour.options).map(opt => opt.value);
+        
+        if (options.includes(todayFr)) {
+            filterJour.value = todayFr;
+            console.log("Jour détecté et sélectionné : " + todayFr);
+        } else {
+            console.log("Aujourd'hui (" + todayFr + ") n'est pas un jour de compétition.");
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // 1. On règle le select sur le jour actuel AVANT de charger les données
+        initAutoSelectDay();
+
+        // 2. Écouteurs d'événements
+        document.getElementById('searchDanseur')?.addEventListener('input', handleFilters);
+        document.getElementById('filterJour')?.addEventListener('change', handleFilters);
+        
+        // 3. Chargement initial
+        fetchData();
+
+        // Rafraîchissement automatique
+        setInterval(fetchData, 30000);
+    });
+</script>
+</body>
+</html>

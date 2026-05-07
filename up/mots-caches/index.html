@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mots Cachés OnStage</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <style>
+        /* Bloque tout mouvement de page pendant le jeu */
+        html, body { touch-action: none; overflow: hidden; position: fixed; width: 100%; }
+
+        .letter-cell { 
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            /* On augmente la taille de police pour la lisibilité */
+            @apply bg-slate-900 border border-slate-800 text-white font-black text-xs aspect-square select-none rounded-lg transition-transform;
+        }
+        
+        /* Effet visuel quand le doigt passe dessus */
+        .letter-selecting { 
+            background-color: #3b82f6 !important; 
+            border-color: #93c5fd !important;
+            transform: scale(1.1); /* La case grossit sous le doigt */
+            z-index: 30;
+        }
+        
+        .letter-found { 
+            background-color: rgba(16, 185, 129, 0.4) !important; 
+            color: #34d399 !important;
+            border-color: rgba(16, 185, 129, 0.6) !important;
+            transform: scale(1) !important;
+        }
+        
+        .word-strike { 
+            text-decoration: line-through !important;
+            opacity: 0.3 !important;
+            color: #10b981 !important;
+        }
+
+        #grid-container {
+            border-radius: 24px;
+            /* Empêche la sélection de texte parasite */
+            -webkit-user-select: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen p-2 font-sans">
+
+    <div class="max-w-md mx-auto h-screen flex flex-col">
+        <header class="text-center py-4 shrink-0">
+            <h1 class="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">Mots Cachés</h1>
+            <div id="current-word" class="h-10 flex items-center justify-center text-blue-400 font-bold tracking-widest uppercase text-xl">
+                Glissez pour jouer
+            </div>
+        </header>
+
+        <div id="grid-container" class="grid grid-cols-12 gap-1.5 bg-slate-800 p-3 shadow-2xl touch-none border border-slate-700 mx-auto w-full max-w-[400px]">
+            </div>
+
+        <div class="mt-4 bg-slate-900/80 p-4 rounded-[2rem] border border-slate-800 shadow-inner overflow-y-auto grow mb-4">
+            <div id="word-list" class="grid grid-cols-3 gap-2 text-[10px] font-bold uppercase tracking-tighter text-slate-500">
+                </div>
+        </div>
+    </div>
+
+<script>
+    // Liste réduite à 20-25 mots pour fit dans une 12x12 sans surcharge
+    const wordBank = [
+        "SCENE", "DANSE", "BALLET", "TUTU", "RYTHME", "POINTES", "GALA", "JAZZ", "CHORE", "DUO",
+        "SOLO", "OPERA", "BARRE", "STAGE", "PIU", "PRIMA", "STUDIO", "ELAN", "PAS", "SAUT",
+        "TOUR", "LIFT", "AWARDS", "BEAT", "MUSIC"
+    ];
+
+    const gridSize = 12;
+    let isSelecting = false;
+    let selectedCoords = [];
+    let foundWords = [];
+    let tempGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(''));
+
+    function createGrid() {
+        wordBank.forEach(word => {
+            let placed = false;
+            let attempts = 0;
+            while (!placed && attempts < 100) {
+                const isVert = Math.random() > 0.5;
+                const x = Math.floor(Math.random() * (gridSize - (isVert ? 0 : word.length)));
+                const y = Math.floor(Math.random() * (gridSize - (isVert ? word.length : 0)));
+                
+                let ok = true;
+                for(let i=0; i<word.length; i++) {
+                    let char = tempGrid[y + (isVert?i:0)][x + (isVert?0:i)];
+                    if(char !== '' && char !== word[i]) { ok = false; break; }
+                }
+                if(ok) {
+                    for(let i=0; i<word.length; i++) tempGrid[y + (isVert?i:0)][x + (isVert?0:i)] = word[i];
+                    placed = true;
+                }
+                attempts++;
+            }
+        });
+
+        const container = document.getElementById('grid-container');
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                const letter = tempGrid[y][x] || String.fromCharCode(65 + Math.floor(Math.random() * 26));
+                const cell = document.createElement('div');
+                cell.className = "letter-cell";
+                cell.id = `c-${x}-${y}`;
+                cell.dataset.x = x;
+                cell.dataset.y = y;
+                cell.dataset.letter = letter;
+                cell.innerText = letter;
+
+                // Support mobile amélioré via pointer events
+                cell.onpointerdown = (e) => {
+                    isSelecting = true;
+                    selectedCoords = [];
+                    addCellToSelection(cell);
+                    cell.setPointerCapture(e.pointerId); 
+                };
+                cell.onpointermove = (e) => {
+                    if (!isSelecting) return;
+                    // Détection de l'élément sous le doigt lors du mouvement
+                    const target = document.elementFromPoint(e.clientX, e.clientY);
+                    if (target && target.classList.contains('letter-cell')) {
+                        addCellToSelection(target);
+                    }
+                };
+                container.appendChild(cell);
+            }
+        }
+        window.onpointerup = endSelection;
+
+        const listDisplay = document.getElementById('word-list');
+        wordBank.sort().forEach(w => {
+            listDisplay.innerHTML += `<span id="li-${w}">${w}</span>`;
+        });
+    }
+
+    function addCellToSelection(cell) {
+        const id = `${cell.dataset.x}-${cell.dataset.y}`;
+        if (!selectedCoords.includes(id)) {
+            selectedCoords.push(id);
+            cell.classList.add('letter-selecting');
+            updateDisplay();
+        }
+    }
+
+    function updateDisplay() {
+        const word = selectedCoords.map(coord => {
+            const el = document.getElementById(`c-${coord}`);
+            return el ? el.dataset.letter : '';
+        }).join('');
+        document.getElementById('current-word').innerText = word;
+    }
+
+    function endSelection() {
+        if (!isSelecting) return;
+        isSelecting = false;
+        const finalWord = document.getElementById('current-word').innerText;
+        
+        if (wordBank.includes(finalWord) && !foundWords.includes(finalWord)) {
+            foundWords.push(finalWord);
+            selectedCoords.forEach(coord => {
+                const cell = document.getElementById(`c-${coord}`);
+                cell.classList.remove('letter-selecting');
+                cell.classList.add('letter-found');
+            });
+            document.getElementById(`li-${finalWord}`).classList.add('word-strike');
+            document.getElementById('current-word').innerText = "TROUVÉ ! ✓";
+        } else {
+            selectedCoords.forEach(coord => {
+                document.getElementById(`c-${coord}`).classList.remove('letter-selecting');
+            });
+        }
+        setTimeout(() => { document.getElementById('current-word').innerText = "Glissez pour jouer"; }, 800);
+        selectedCoords = [];
+    }
+
+    createGrid();
+</script>
+</body>
+</html>

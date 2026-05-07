@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Défis Photos - OnStage</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <style>
+        /* Verrouille l'écran pour éviter le scroll parasite pendant le jeu */
+        html, body { touch-action: none; overflow: hidden; position: fixed; width: 100%; height: 100%; }
+
+        /* Cercle de succès animé sur les deux images */
+        .found-circle {
+            @apply absolute border-4 border-emerald-400 rounded-full bg-emerald-500/20 shadow-lg opacity-0 scale-150;
+            width: 40px; height: 40px; transform: translate(-20px, -20px);
+            animation: foundAppear 0.5s ease-out forwards;
+            pointer-events: none; /* Ne pas bloquer les clics futurs */
+            z-index: 50;
+        }
+
+        @keyframes foundAppear {
+            0% { opacity: 0; transform: translate(-20px, -20px) scale(2); }
+            100% { opacity: 1; transform: translate(-20px, -20px) scale(1); }
+        }
+
+        /* Feedback visuel lors d'une erreur (vibration rouge rapide) */
+        .error-blink { animation: errorBlink 0.3s ease; }
+        @keyframes errorBlink {
+            0%, 100% { background-color: transparent; }
+            50% { background-color: rgba(239, 68, 68, 0.2); }
+        }
+    </style>
+</head>
+<body class="bg-[#0f172a] text-slate-200 p-3 font-sans select-none">
+
+    <div class="max-w-md mx-auto h-screen flex flex-col items-center">
+        
+        <header class="text-center py-4 shrink-0 w-full border-b border-slate-800 mb-4">
+            <h1 class="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">Chasse aux Indices</h1>
+            <p id="score-display" class="text-blue-400 font-bold tracking-widest uppercase mt-1 text-sm">
+                Trouvé : 0 / 5
+            </p>
+        </header>
+
+        <div id="game-zone" class="w-full grow flex flex-col justify-center gap-2 overflow-hidden">
+            
+            <div class="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-xl aspect-[4/3]">
+                <img src="/images/rallye/original.jpg" class="w-full h-full object-cover select-none pointer-events-none" alt="Original">
+                <div id="markers-orig"></div>
+            </div>
+
+            <div id="click-zone" class="relative overflow-hidden rounded-xl border-4 border-slate-800 bg-slate-900 shadow-xl aspect-[4/3] cursor-crosshair">
+                <img src="/images/rallye/modified.jpg" class="w-full h-full object-cover select-none pointer-events-none" alt="Modified">
+                <div id="markers-mod"></div>
+                <div id="error-overlay" class="absolute inset-0 pointer-events-none"></div>
+            </div>
+        </div>
+
+        <footer class="w-full py-4 text-center shrink-0">
+            <p class="text-xs text-slate-500 italic">Trouve les 5 éléments manquants sur l'image du bas.</p>
+        </footer>
+    </div>
+
+<script>
+    // --- CONFIGURATION DES DIFFÉRENCES (en %) ---
+    const differences = [
+        { id: 1, x: 7.5, y: 15.2, radius: 6, found: false }, // Haut-parleur G
+        { id: 2, x: 50.8, y: 13.5, radius: 5, found: false }, // Bonnet Rouge
+        { id: 3, x: 88.5, y: 84.1, radius: 4, found: false }, // Canette Orange
+        { id: 4, x: 83.2, y: 44.1, radius: 5, found: false }, // Logo EDRW Veste
+        { id: 5, x: 67.8, y: 28.3, radius: 5, found: false }  // Flèche Graffiti
+    ];
+
+    let foundCount = 0;
+    const clickZone = document.getElementById('click-zone');
+    const scoreDisplay = document.getElementById('score-display');
+    const errorOverlay = document.getElementById('error-overlay');
+
+    // Gestion du clic (tactile pour mobile)
+    clickZone.addEventListener('touchstart', (e) => {
+        if (foundCount === differences.length) return; // Jeu terminé
+        e.preventDefault();
+        
+        const rect = clickZone.getBoundingClientRect();
+        const touch = e.touches[0];
+        
+        // Calcul de la position précise en % par rapport à l'image
+        const posX = ((touch.clientX - rect.left) / rect.width) * 100;
+        const posY = ((touch.clientY - rect.top) / rect.height) * 100;
+
+        checkClick(posX, posY);
+    });
+
+    function checkClick(px, py) {
+        let isHit = false;
+
+        differences.forEach((diff) => {
+            if (diff.found) return;
+
+            // Calcul de la distance (théorème de Pythagore)
+            const dx = px - diff.x;
+            const dy = py - diff.y;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            
+            // Si le clic est dans le rayon de tolérance
+            if (distance <= diff.radius) {
+                diff.found = true;
+                isHit = true;
+                registerFound(diff);
+            }
+        });
+
+        if (isHit) {
+            // Feedback Succès (sonore optionnel)
+        } else {
+            // Feedback Erreur : Vibration + Flash Rouge
+            if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+            errorOverlay.classList.add('error-blink');
+            setTimeout(() => errorOverlay.classList.remove('error-blink'), 300);
+        }
+    }
+
+    function registerFound(diff) {
+        foundCount++;
+        scoreDisplay.innerText = `Trouvé : ${foundCount} / ${differences.length}`;
+        scoreDisplay.classList.add('animate-pulse', 'text-emerald-400');
+        setTimeout(() => scoreDisplay.classList.remove('animate-pulse', 'text-emerald-400'), 1000);
+
+        addMarker(diff.x, diff.y);
+
+        if (foundCount === differences.length) {
+            scoreDisplay.innerText = "🏆 FÉLICITATIONS ! CHALLENGE RÉUSSI 🏆";
+            scoreDisplay.classList.add('text-emerald-400');
+        }
+    }
+
+    // Ajoute le cercle vert sur les DEUX images
+    function addMarker(x, y) {
+        const createCircle = (parentID) => {
+            const div = document.createElement('div');
+            div.className = "found-circle";
+            div.style.left = `${x}%`;
+            div.style.top = `${y}%`;
+            document.getElementById(parentID).appendChild(div);
+        };
+        createCircle('markers-orig');
+        createCircle('markers-mod');
+    }
+
+</script>
+</body>
+</html>

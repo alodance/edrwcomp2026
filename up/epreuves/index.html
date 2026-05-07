@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EDRW Photo Rally - Inspire</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <style>
+        /* Optimisation pour éviter le défilement horizontal et améliorer le tactile */
+        html, body { touch-action: manipulation; }
+        
+        .completed {
+            @apply opacity-60 bg-emerald-900/20 border-emerald-500/50 scale-[0.98];
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, .1);
+            border-top: 3px solid #60a5fa;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        input::file-selector-button { display: none; }
+    </style>
+    <script src="/inspire/inspire-core.js"></script>
+</head>
+
+<body class="bg-[#0f172a] text-slate-200 p-4 md:p-8 font-sans">
+    
+    <div id="next-chore-bar" class="hidden fixed bottom-0 left-0 right-0 bg-blue-600 border-t border-blue-400 shadow-[0_-15px_30px_rgba(0,0,0,0.5)] z-[100] px-4 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] animate-in fade-in slide-in-from-bottom-full duration-500">
+        <div class="max-w-md mx-auto flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0"> 
+                <div class="bg-white/20 p-2 rounded-lg shrink-0">
+                    <span class="text-xl">💃</span>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[10px] font-black uppercase tracking-tighter text-blue-100 leading-none mb-1">
+                        Prochain passage à <span id="next-time" class="text-white">--:--</span>
+                    </p>
+                    <h4 id="next-title" class="text-sm font-bold text-white truncate leading-tight">Chargement...</h4>
+                </div>
+            </div>
+            <div class="shrink-0">
+                <span id="next-countdown" class="bg-black/20 px-3 py-1.5 rounded-full text-[10px] font-black text-white border border-white/10">-- MIN</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-3xl mx-auto bg-slate-900/50 rounded-[2.5rem] shadow-2xl border border-slate-800 p-6 mb-20">
+        <a href="/inspire/index.html" class="block mb-6">
+            <div class="border text-center border-slate-700 p-3 text-slate-400 hover:text-blue-400 hover:border-blue-500 cursor-pointer rounded-xl transition-all uppercase text-[10px] font-black tracking-widest">
+                ← Retour au menu
+            </div>
+        </a>
+        
+        <header class="text-center mb-10 border-b border-slate-800 pb-8">
+            <h1 class="text-4xl font-black tracking-tighter text-white uppercase italic">Inspire 2026</h1>
+            <p class="text-blue-500 mt-2 text-xs font-black uppercase tracking-[0.3em]">Rallye Photos / Photo Rally</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 bg-slate-950/40 p-6 rounded-3xl border border-slate-800" id="user-info-section">
+            <div>
+                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Nom / Name</label>
+                <input type="text" id="userName" onchange="saveUserInfo()" class="w-full bg-slate-800 border border-slate-700 text-white p-4 rounded-xl outline-none focus:border-blue-500 transition-all font-bold" placeholder="Nom complet">
+            </div>
+            <div>
+                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Courriel / Email</label>
+                <input type="email" id="userEmail" onchange="saveUserInfo()" class="w-full bg-slate-800 border border-slate-700 text-white p-4 rounded-xl outline-none focus:border-blue-500 transition-all font-bold" placeholder="email@exemple.com">
+            </div>
+        </div>
+
+        <div id="questions-container" class="space-y-4"></div>
+    </div>
+
+    <script>
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz2jEyPAT-Cip5hYR5vpOvPP-bQgLgXJGst9VCdgalSkygSb0y38FGQVv9dm2qMD8SRQQ/exec';
+        
+        // IDENTIFIANT UNIQUE POUR CETTE COMPÉTITION
+        const COMPETITION_ID = 'inspire_2026';
+
+        const questions = [
+            { fr: "Une photo de moi avec un parent EDRW qui n'est pas le mien.", en: "A photo of me with an EDRW parent who is not my own." },
+            { fr: "Une photo de moi avec DEUX danseurs qui dansent dans DEUX studios différents qui n'est pas EDRW.", en: "A photo of me with TWO dancers dancing in TWO different studios that are not EDRW." },
+            { fr: "Une photo de moi avec une autre danseuse de EDRW qui m'inspire.", en: "A photo of me with another EDRW dancer who inspires me." },
+            { fr: "Une photo de la salle vue de la scène.", en: "A photo of the hall viewed from the stage." },
+            { fr: "Une photo de moi, avec un danseur d'un autre studio, qui porte un costume mauve.", en: "A photo of me with a dancer from another studio wearing a purple costume." },
+            { fr: "Une photo de moi devant la scène vide (pendant une pause).", en: "A photo of me in front of the empty stage (during a break)." },
+            { fr: "Une photo avec un(e) danseur(se) qui rends mes cours plus le fun", en: "A photo with a dancer who makes my classes more fun." },
+            { fr: "Une photo où on peut voir le nom de la compétition, l'année et mon nom.", en: "A photo where the name of the competition, the year, and my name can be seen." },
+            { fr: "Une photo de moi avec un employé de la compétition.", en: "A photo of me with a competition employee." },
+            { fr: "Une photo de moi qui se déplace sans marcher", en: "A photo of me moving without walking." },
+            { fr: "Un selfie de moi sur la scène.", en: "A selfie of me on the stage." },
+            { fr: "Une photo de moi avec un drapeau de pays ou de province.", en: "A photo of me with a flag of a country or province." },
+            { fr: "Un selfie avec DEUX danseurs EDRW qui ne dansent pas dans mon groupe.", en: "A selfie with TWO EDRW dancers who do not dance in my group." },
+            { fr: "Une photo de moi qui fait une bonne action.", en: "A photo of me doing a good deed." },
+            { fr: "Un selfie de moi avec l'animateur de la compétition.", en: "A selfie of me with the competition host." }
+        ];
+
+        // Helpers LocalStorage isolés
+        const storage = {
+            set: (key, val) => localStorage.setItem(`${COMPETITION_ID}_${key}`, val),
+            get: (key) => localStorage.getItem(`${COMPETITION_ID}_${key}`)
+        };
+
+        const container = document.getElementById('questions-container');
+        const userNameInput = document.getElementById('userName');
+        const userEmailInput = document.getElementById('userEmail');
+
+        function init() {
+            // Chargement des infos isolées
+            userNameInput.value = storage.get('user_name') || '';
+            userEmailInput.value = storage.get('user_email') || '';
+
+            questions.forEach((q, index) => {
+                const isDone = storage.get(`q_${index}_done`);
+                const div = document.createElement('div');
+                div.id = `card-${index}`;
+                div.className = `p-5 border rounded-2xl transition-all duration-300 ${isDone ? 'completed' : 'bg-slate-800/40 border-slate-700'}`;
+
+                div.innerHTML = `
+                <div class="flex flex-col gap-4">
+                    <div class="flex-1">
+                        <p class="font-bold text-blue-400 leading-tight">${index + 1}. ${q.fr}</p>
+                        <p class="text-[10px] text-slate-500 italic mt-1 uppercase tracking-wider font-medium">${q.en}</p>
+                    </div>
+                    
+                    <div id="status-${index}" class="hidden flex justify-center py-2"><div class="spinner"></div></div>
+                    
+                    <div id="actions-${index}" class="flex flex-wrap gap-2 ${isDone ? 'hidden' : ''}">
+                        <input type="file" id="cam-${index}" accept="image/*" capture="environment" class="hidden" onchange="handleUpload(${index}, 'cam-${index}')">
+                        <button onclick="document.getElementById('cam-${index}').click()" class="flex-1 min-w-[140px] bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all">
+                            📸 Prendre photo
+                        </button>
+                        
+                        <input type="file" id="gal-${index}" accept="image/*" class="hidden" onchange="handleUpload(${index}, 'gal-${index}')">
+                        <button onclick="document.getElementById('gal-${index}').click()" class="flex-1 min-w-[140px] bg-slate-700 hover:bg-slate-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all">
+                            📁 Choisir photo
+                        </button>
+                    </div>
+
+                    ${isDone ? `<div class="text-center py-2 text-emerald-400 font-black text-xs tracking-[0.3em] uppercase">COMPLÉTÉ ✓</div>` : ''}
+                </div>`;
+                container.appendChild(div);
+            });
+        }
+
+        function saveUserInfo() {
+            storage.set('user_name', userNameInput.value.trim());
+            storage.set('user_email', userEmailInput.value.trim());
+        }
+
+        async function handleUpload(index, inputId) {
+            const fileInput = document.getElementById(inputId);
+            const name = userNameInput.value.trim();
+            const email = userEmailInput.value.trim();
+
+            if (!name || !email) {
+                alert("Oups ! Entre ton nom et ton courriel en haut de la page avant de téléverser.");
+                fileInput.value = '';
+                return;
+            }
+
+            saveUserInfo();
+
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const actionsDiv = document.getElementById(`actions-${index}`);
+            const statusDiv = document.getElementById(`status-${index}`);
+            
+            actionsDiv.classList.add('hidden');
+            statusDiv.classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onload = async function (e) {
+                const base64File = e.target.result;
+                try {
+                    await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        body: JSON.stringify({
+                            competition: COMPETITION_ID,
+                            userName: name,
+                            userEmail: email,
+                            fileName: `INSPIRE_Q${index + 1}_${name.replace(/\s+/g, '_')}.jpg`,
+                            file: base64File
+                        })
+                    });
+                    markAsDone(index);
+                } catch (error) {
+                    alert("Erreur réseau. Vérifie ta connexion et réessaye.");
+                    actionsDiv.classList.remove('hidden');
+                } finally {
+                    statusDiv.classList.add('hidden');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function markAsDone(index) {
+            storage.set(`q_${index}_done`, "true");
+            const card = document.getElementById(`card-${index}`);
+            card.innerHTML = `
+                <div class="flex flex-col gap-4">
+                    <div class="flex-1">
+                        <p class="font-bold text-blue-400 leading-tight">${index + 1}. ${questions[index].fr}</p>
+                        <p class="text-[10px] text-slate-500 italic mt-1 uppercase tracking-wider font-medium">${questions[index].en}</p>
+                    </div>
+                    <div class="text-center py-2 text-emerald-400 font-black text-xs tracking-[0.3em] uppercase">COMPLÉTÉ ✓</div>
+                </div>`;
+            card.classList.add('completed');
+        }
+
+        init();
+    </script>
+</body>
+</html>

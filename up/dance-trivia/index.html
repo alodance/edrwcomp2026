@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trivia Up Dance Challenge - EDRW</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script src="/up/up-core.js"></script>
+    <style>
+        /* Optimisation mobile et blocage du défilement */
+        html, body { 
+            touch-action: manipulation; 
+            overflow: hidden; 
+            position: fixed; 
+            width: 100%; 
+            height: 100%; 
+            margin: 0;
+            padding: 0;
+        }
+        
+        .glass-panel { 
+            @apply bg-slate-900/95 border border-slate-800 rounded-[2rem] p-6 shadow-2xl;
+            backdrop-filter: blur(10px);
+        }
+
+        /* CONTENEUR DES OPTIONS : On force l'empilement vertical propre */
+        #options-container {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 12px !important;
+            width: 100% !important;
+        }
+
+        /* BOUTON D'OPTION : Style bloc complet pour éviter les chevauchements */
+        .btn-option { 
+            display: block !important;
+            width: 100% !important;
+            text-align: left !important;
+            @apply bg-slate-800/60 border border-slate-700/50 p-4 rounded-2xl text-[14px] font-bold transition-all duration-200 text-slate-200;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn-option:active { @apply bg-slate-700 scale-[0.98]; }
+
+        /* ÉTATS DE RÉPONSE */
+        .answer-correct { 
+            @apply bg-emerald-600! border-emerald-400! text-white! opacity-100!;
+        }
+        .answer-wrong { 
+            @apply bg-red-600! border-red-400! text-white! opacity-100!;
+        }
+
+        .loader { border-top-color: #3b82f6; animation: spinner 0.6s linear infinite; }
+        @keyframes spinner { to { transform: rotate(360deg); } }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-slate-700 rounded-full; }
+    </style>
+</head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-P833EJRBMX"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+
+    gtag('config', 'G-P833EJRBMX');
+</script>
+<body class="bg-[#0f172a] text-slate-200 p-4 font-sans select-none flex items-center justify-center">
+<div id="next-chore-bar" class="hidden fixed bottom-0 left-0 right-0 bg-blue-600 border-t border-blue-400 shadow-[0_-10px_20px_rgba(0,0,0,0.5)] z-[100] p-3 animate-in fade-in slide-in-from-bottom-full duration-500">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="bg-white/20 p-2 rounded-lg animate-pulse">
+                    <span class="text-xl">💃</span>
+                </div>
+                <div class="overflow-hidden">
+                    <p class="text-[10px] font-black uppercase tracking-tighter text-white">Prochain passage à <span id="next-time">--:--</span></p>
+                    <h4 id="next-title" class="text-sm font-bold text-white truncate max-w-[200px] md:max-w-md">Chargement...</h4>
+                </div>
+            </div>
+            <div class="text-right ml-4">
+                <span id="next-countdown" class="bg-black/20 px-3 py-1 rounded-full text-[11px] font-bold text-white whitespace-nowrap">-- min</span>
+            </div>
+        </div>
+    </div>
+    <div class="w-full max-w-md h-[95vh] flex flex-col">
+        <a href="/up/index.html">
+            <p class="border text-center border-blue-500 m-2 p-3 text-white hover:text-blue-400 cursor-pointer rounded-lg transition-colors">Retour</p>
+        </a>
+        <header class="relative text-center my-12 shrink-0">
+            <h1 class="text-2xl font-black text-white uppercase italic tracking-tighter">Connais-tu bien l'équipe de professeurs?</h1>
+            <div id="player-tag" class="text-blue-500 text-[9px] font-black uppercase tracking-[0.2em] mt-1 hidden"></div>
+            
+            <button id="logout-btn" onclick="switchUser()" class="absolute right-0 top-1/2 -translate-y-1/2 hidden bg-slate-800/50 p-2 rounded-lg border border-slate-700 active:scale-90">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+            </button>
+        </header>
+
+        <main class="flex-grow flex flex-col justify-center min-h-0">
+            
+            <div id="login-screen" class="glass-panel text-center animate-in fade-in zoom-in duration-300">
+                <h2 class="text-xl font-black text-white mb-2 uppercase italic">Prêt ?</h2>
+                <p class="text-slate-400 text-xs mb-8">Tes meilleurs scores seront conservés dans le classement.</p>
+                
+                <input type="text" id="username" placeholder="Ton nom / Studio" 
+                       class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-white mb-4 focus:border-blue-500 outline-none text-center font-bold">
+                
+                <button onclick="startQuiz()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-lg active:scale-95 transition-transform">
+                    Commencer
+                </button>
+            </div>
+
+            <div id="quiz-screen" class="hidden glass-panel flex flex-col max-h-full">
+                <div class="flex justify-between items-center mb-6 shrink-0">
+                    <span id="progress-text" class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Question 1/5</span>
+                    <div class="text-[9px] font-black text-blue-400 uppercase tracking-widest">Score: <span id="current-score">0</span></div>
+                </div>
+                
+                <div class="mb-6">
+                    <h2 id="question-text" class="text-lg font-black text-white leading-tight">...</h2>
+                </div>
+                
+                <div id="options-container">
+                    </div>
+
+                <div id="feedback" class="hidden mt-6 p-4 rounded-2xl text-center font-black text-[10px] border uppercase tracking-widest animate-in zoom-in"></div>
+                
+                <button id="next-btn" onclick="nextQuestion()" class="hidden w-full mt-6 bg-white text-slate-950 font-black py-4 rounded-2xl uppercase tracking-widest text-[11px] shadow-xl">
+                    Suivant
+                </button>
+            </div>
+
+            <div id="result-screen" class="hidden glass-panel h-full flex flex-col">
+                <div class="text-center mb-4 shrink-0">
+                    <div class="text-4xl mb-2">🏆</div>
+                    <h2 id="final-name" class="text-xl font-black text-white uppercase truncate">Nom</h2>
+                    <p id="final-score-text" class="text-blue-500 font-black text-4xl mt-1">0/5</p>
+                </div>
+
+                <div class="flex-grow flex flex-col min-h-0">
+                    <h3 class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-4 text-center border-b border-slate-800 pb-2">Top 10 Live</h3>
+                    <div id="leaderboard-loader" class="flex justify-center py-4 hidden">
+                        <div class="loader w-5 h-5 border-2 border-slate-800 rounded-full"></div>
+                    </div>
+                    <div id="leaderboard" class="space-y-2 overflow-y-auto pr-2 custom-scrollbar"></div>
+                </div>
+
+                <div class="flex gap-2 mt-6">
+                    <button onclick="restart()" class="flex-grow bg-slate-800 text-slate-200 font-bold py-4 rounded-2xl uppercase text-[10px] tracking-widest">
+                        Rejouer
+                    </button>
+                    <button onclick="switchUser()" class="px-6 bg-slate-950 border border-slate-800 text-slate-500 rounded-2xl active:scale-90 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+<script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx05z-_hK4bbLrHFG2oebJZjP9LYhvqkUlgdnBoArQfTcEEt1d69-oHMzg8tG7vhp10jA/exec";
+
+    const questions = [
+        { q: "J'ai visité 25 pays", options: ["Skyla", "Laurie", "Alexia J.", "Emily"], correct: 3 },
+        { q: "J'ai un chat, un chien et un lapin", options: ["Léa", " Maé", "Laurie", "Ariane"], correct: 2 },
+        { q: "Peu importe le restaurant, je finis toujours pas commander un fish'n'ship", options: ["Ariane", "Alexya F.", "Gabrielle", "Mélina"], correct: 3 },
+        { q: "Je ne gaspille jamais au resto. Je ramène toujours les petits fonds de frites et de salade de chou de tout le monde à la table.", options: ["Ariane", "Gabrielle", "Léa", "Ariane"], correct: 3 },
+        { q: "J'ai oublié mon solo sur scène et, en marchant pour sortir de scène, je l'ai retrouvé grâce à ma prof. J'ai improvisé des sauts que je ne me savais pas capable de faire.", options: ["Gabrielle", "Alexia R.", "Kanelle", "Oriane"], correct: 1 },
+        { q: "J'ai déjà fait du Baladi", options: ["Chloé", "Catherine", "Gabrielle", "Skyla"], correct: 2 },
+        { q: "Quand j'étais jeune, je faisais toujours les essais de baseball au printemps. J'ai fini par comprendre que ce sport n'était pas pour moi car je fesais rire les coach en courant comme une ballerine sur les buts.", options: ["Léa", "Maé", "Ariane", "Laurie"], correct: 0 },
+        { q: "Je lèche toujours les chips avant de les manger", options: ["Alexia J.", "Chloé", "Maé", "Laurie"], correct: 1 },
+        { q: "Quand j'étais petite, je me suis retrouvé à avoir involontairement dans la bouche durant ma danse.", options: ["Alexia J.", "Oriane", "Catherine", "Laurie"], correct: 1 },
+        { q: "Je mange toujours mon riz avec du ketchup", options: ["Oriane", "Salomé", "Catherine","Mélina"], correct: 2 }
+    ];
+
+    let playerName = "";
+    let currentQ = 0;
+    let score = 0;
+
+    function startQuiz() {
+        const input = document.getElementById('username');
+        if (input.value.trim().length < 2) return;
+        playerName = input.value.trim();
+        
+        document.getElementById('player-tag').innerText = `ID: ${playerName}`;
+        document.getElementById('player-tag').classList.remove('hidden');
+        document.getElementById('logout-btn').classList.remove('hidden');
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('quiz-screen').classList.remove('hidden');
+        loadQuestion();
+    }
+
+    function switchUser() {
+        playerName = "";
+        currentQ = 0;
+        score = 0;
+        document.getElementById('username').value = "";
+        document.getElementById('current-score').innerText = "0";
+        document.getElementById('player-tag').classList.add('hidden');
+        document.getElementById('logout-btn').classList.add('hidden');
+        document.getElementById('quiz-screen').classList.add('hidden');
+        document.getElementById('result-screen').classList.add('hidden');
+        document.getElementById('login-screen').classList.remove('hidden');
+    }
+
+    function loadQuestion() {
+        const qData = questions[currentQ];
+        document.getElementById('progress-text').innerText = `Question ${currentQ + 1}/${questions.length}`;
+        document.getElementById('question-text').innerText = qData.q;
+        const container = document.getElementById('options-container');
+        container.innerHTML = ''; 
+
+        qData.options.forEach((opt, index) => {
+            const btn = document.createElement('button');
+            btn.className = "btn-option";
+            btn.innerText = opt;
+            btn.onclick = () => checkAnswer(index, btn);
+            container.appendChild(btn);
+        });
+        
+        document.getElementById('feedback').classList.add('hidden');
+        document.getElementById('next-btn').classList.add('hidden');
+    }
+
+    function checkAnswer(index, btn) {
+        const qData = questions[currentQ];
+        const feedback = document.getElementById('feedback');
+        const allBtns = document.querySelectorAll('#options-container button');
+        allBtns.forEach(b => b.disabled = true);
+
+        if (index === qData.correct) {
+            score++;
+            btn.classList.add('answer-correct');
+            feedback.innerText = "EXCELLENT !";
+            feedback.className = "mt-6 p-4 rounded-2xl text-center font-black text-[10px] bg-emerald-500/10 text-emerald-400 block border border-emerald-500/30 uppercase tracking-widest";
+        } else {
+            btn.classList.add('answer-wrong');
+            feedback.innerText = `OUPS ! C'ÉTAIT : ${qData.options[qData.correct]}`;
+            feedback.className = "mt-6 p-4 rounded-2xl text-center font-black text-[10px] bg-red-500/10 text-red-400 block border border-red-500/30 uppercase tracking-widest";
+        }
+        
+        document.getElementById('current-score').innerText = score;
+        document.getElementById('next-btn').classList.remove('hidden');
+    }
+
+    function nextQuestion() {
+        currentQ++;
+        if (currentQ < questions.length) loadQuestion();
+        else showResults();
+    }
+
+    function showResults() {
+        document.getElementById('quiz-screen').classList.add('hidden');
+        document.getElementById('result-screen').classList.remove('hidden');
+        document.getElementById('final-name').innerText = playerName;
+        document.getElementById('final-score-text').innerText = `${score} / ${questions.length}`;
+        saveScore();
+    }
+
+    function saveScore() {
+        const payload = { name: playerName, score: score, total: questions.length };
+        document.getElementById('leaderboard-loader').classList.remove('hidden');
+
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(() => {
+            setTimeout(fetchLeaderboard, 1500);
+        });
+    }
+
+    function fetchLeaderboard() {
+        fetch(SCRIPT_URL)
+            .then(res => res.json())
+            .then(data => {
+                const list = document.getElementById('leaderboard');
+                document.getElementById('leaderboard-loader').classList.add('hidden');
+                list.innerHTML = data.map((row, i) => `
+                    <div class="flex justify-between items-center bg-slate-950/40 p-3 rounded-xl border border-slate-800/50 mb-2">
+                        <div class="flex items-center gap-3">
+                            <span class="text-[8px] font-black w-4 h-4 flex items-center justify-center rounded-full ${i < 3 ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}">
+                                ${i+1}
+                            </span>
+                            <span class="text-[11px] font-bold text-slate-300 truncate max-w-[100px]">${row[0]}</span>
+                        </div>
+                        <span class="text-[10px] font-black text-blue-500">${row[1]}/${row[2]}</span>
+                    </div>
+                `).join('');
+            })
+            .catch(() => {
+                document.getElementById('leaderboard-loader').classList.add('hidden');
+            });
+    }
+
+    function restart() {
+        currentQ = 0; score = 0;
+        document.getElementById('current-score').innerText = "0";
+        document.getElementById('result-screen').classList.add('hidden');
+        document.getElementById('quiz-screen').classList.remove('hidden');
+        loadQuestion();
+    }
+</script>
+</body>
+</html>
