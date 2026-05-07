@@ -121,7 +121,7 @@ function updateStickyBar() {
 }
 
 // Initialisation au chargement
-async function initOnStageCore() {
+/*async function initOnStageCore() {
     try {
         const response = await fetch(SHEET_URL);
         const csvText = await response.text();
@@ -138,6 +138,6 @@ async function initOnStageCore() {
     } catch (e) {
         console.error("Erreur Core:", e);
     }
-}
+}*/
 
 document.addEventListener('DOMContentLoaded', initOnStageCore);
